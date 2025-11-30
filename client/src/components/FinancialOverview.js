@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import { plaidAPI, transactionAPI, insightsAPI } from '../services/api';
+import ExpensesChart from './ExpensesChart';
 import './FinancialOverview.css';
 
 function FinancialOverview({ refreshKey = 0 }) {
@@ -14,6 +15,8 @@ function FinancialOverview({ refreshKey = 0 }) {
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [totalTransactions, setTotalTransactions] = useState(0);
+  const [chartTransactions, setChartTransactions] = useState([]);
+  const [chartTransactionsLoading, setChartTransactionsLoading] = useState(false);
   const [insight, setInsight] = useState(null);
   const [insightLoading, setInsightLoading] = useState(true);
   const [insightError, setInsightError] = useState('');
@@ -30,6 +33,7 @@ function FinancialOverview({ refreshKey = 0 }) {
   useEffect(() => {
     setCurrentPage(1);
     fetchTransactions(transactionsPeriod, 1);
+    fetchChartTransactions(transactionsPeriod);
   }, [transactionsPeriod, refreshKey]);
 
   useEffect(() => {
@@ -60,27 +64,32 @@ function FinancialOverview({ refreshKey = 0 }) {
   };
 
 
+  const calculateDateRange = (period) => {
+    const endDate = new Date().toISOString().split('T')[0];
+    let startDate;
+    
+    switch (period) {
+      case 'last-7-days':
+        startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        break;
+      case 'last-30-days':
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        break;
+      case 'last-60-days':
+        startDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+        break;
+      default:
+        startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+    }
+    
+    return { startDate, endDate };
+  };
+
   const fetchTransactions = async (period, page = 1) => {
     try {
       setTransactionsLoading(true);
       
-      // Calculate date range based on selected period
-      const endDate = new Date().toISOString().split('T')[0];
-      let startDate;
-      
-      switch (period) {
-        case 'last-7-days':
-          startDate = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          break;
-        case 'last-30-days':
-          startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          break;
-        case 'last-60-days':
-          startDate = new Date(Date.now() - 60 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-          break;
-        default:
-          startDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
-      }
+      const { startDate, endDate } = calculateDateRange(period);
 
       // Fetch 20 transactions per page
       const limit = 20;
@@ -115,6 +124,35 @@ function FinancialOverview({ refreshKey = 0 }) {
       setCurrentPage(1);
     } finally {
       setTransactionsLoading(false);
+    }
+  };
+
+  const fetchChartTransactions = async (period) => {
+    try {
+      setChartTransactionsLoading(true);
+      
+      const { startDate, endDate } = calculateDateRange(period);
+
+      // Fetch all transactions for the chart (no pagination)
+      const response = await transactionAPI.getCachedTransactions({
+        startDate,
+        endDate,
+        limit: 1000, // Get up to 1000 transactions for the chart
+        skip: 0
+      });
+
+      if (response.data.success) {
+        const data = response.data.data;
+        setChartTransactions(data.transactions || []);
+      } else {
+        console.error('Failed to fetch chart transactions:', response.data.message);
+        setChartTransactions([]);
+      }
+    } catch (error) {
+      console.error('Error fetching chart transactions:', error);
+      setChartTransactions([]);
+    } finally {
+      setChartTransactionsLoading(false);
     }
   };
 
@@ -169,6 +207,7 @@ function FinancialOverview({ refreshKey = 0 }) {
         // Refresh transactions and accounts
         await Promise.all([
           fetchTransactions(transactionsPeriod, 1),
+          fetchChartTransactions(transactionsPeriod),
           fetchAccounts()
         ]);
         
@@ -560,6 +599,28 @@ function FinancialOverview({ refreshKey = 0 }) {
                 <div className="no-data-message">
                   No transactions found for this period
                 </div>
+              )}
+            </div>
+          </div>
+
+          {/* Expenses Chart Widget */}
+          <div className="analytics-widget expenses-chart-widget">
+            <div className="widget-header">
+              <div className="widget-info">
+                <div className="widget-title">
+                  <h4>Expenses Over Time</h4>
+                  <p>Track your spending trends</p>
+                </div>
+              </div>
+            </div>
+            <div className="widget-content">
+              {chartTransactionsLoading ? (
+                <div className="transactions-loading">
+                  <div className="loading-spinner"></div>
+                  <span>Loading chart data...</span>
+                </div>
+              ) : (
+                <ExpensesChart transactions={chartTransactions} period={transactionsPeriod} />
               )}
             </div>
           </div>

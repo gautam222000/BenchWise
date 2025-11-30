@@ -943,19 +943,22 @@
 }
 
 .analytics-grid {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
   gap: 12px;
 }
 
 .analytics-grid.two-column {
-  flex-direction: row;
-  gap: 12px;
+  grid-template-columns: repeat(2, 1fr);
 }
 
 .analytics-grid.two-column .analytics-widget {
-  flex: 1;
   min-width: 0;
+}
+
+/* Expenses chart widget should span full width on smaller screens */
+.expenses-chart-widget {
+  grid-column: 1 / -1;
 }
 
 .analytics-widget {
@@ -1094,6 +1097,11 @@
   flex: 1;
   display: flex;
   align-items: flex-end;
+}
+
+.expenses-chart-widget .widget-content {
+  align-items: stretch;
+  flex-direction: column;
 }
 
 .no-data-message {
@@ -1338,8 +1346,16 @@
 
 /* Responsive Design */
 @media (max-width: 768px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+  
   .analytics-grid.two-column {
-    flex-direction: column;
+    grid-template-columns: 1fr;
+  }
+  
+  .expenses-chart-widget {
+    grid-column: 1;
   }
   
   .balance-summary {
